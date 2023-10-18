@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"test/calculator/calculatorpb"
+	"time"
 
 	"google.golang.org/grpc"
 )
@@ -18,7 +19,7 @@ func main() {
 	defer cc.Close()
 	client := calculatorpb.NewCalculatorServiceClient(cc)
 	log.Printf("service client %f",client)
-	callAverage(client)
+	callFindMax(client)
 }
 
 func callSum(c calculatorpb.CalculatorServiceClient){
@@ -84,4 +85,55 @@ func callAverage(c calculatorpb.CalculatorServiceClient){
 				log.Fatalf("receive average request err %v",err)
 			}
 			log.Printf("average response %+v", resp)
+}
+
+func callFindMax(c calculatorpb.CalculatorServiceClient){
+	log.Println("calling find max...")
+	stream,err := c.FindMax(context.Background())
+	if err != nil {
+		log.Fatalf("Call average err %v",err)
+	}
+
+	listReq := []calculatorpb.FindMaxRequest{
+				calculatorpb.FindMaxRequest{
+					Num:5,
+				},calculatorpb.FindMaxRequest{
+					Num:10,
+				},calculatorpb.FindMaxRequest{
+					Num:12,
+				},calculatorpb.FindMaxRequest{
+					Num:18,
+				},calculatorpb.FindMaxRequest{
+					Num:4,
+				},
+			}
+
+			waitc := make(chan struct{})
+
+			go func (){
+				for _, req := range listReq{
+					err := stream.Send(&req)
+					if err != nil {
+						log.Fatalf("Send ")
+						break
+					}
+					time.Sleep(1000 * time.Millisecond)
+				}
+				stream.CloseSend()
+			}()
+			go func (){
+				for {
+					resp, err := stream.Recv()
+					if err == io.EOF{
+						log.Println("ending find max api ...")
+						close(waitc)
+					}
+					if err != nil {
+						log.Fatalf("recv find max %v",err)
+						break
+					}
+					log.Println("max: %v",resp.GetMax())
+				}
+			}()
+			<-waitc
 }
